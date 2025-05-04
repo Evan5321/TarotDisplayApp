@@ -10,6 +10,8 @@ class TarotCardDisplayApp:
     windows_height = 0
     add_card_button = 0
     add_card_text = 0
+    popup = None
+    popup_selected_index = -100
 
     def __init__(self, root):
         self.root = root
@@ -69,7 +71,7 @@ class TarotCardDisplayApp:
         rect = self.canvas.create_rectangle(x, y, x + 150, y + 200, fill="", outline="black", width=5)
         # Store both rectangles as a tuple
         self.Cards.append((hit_rect, rect))
-        self.Cards_content.append(-1)
+        self.Cards_content.append(0)
         # Create index number above the rectangle
         index_num = len(self.Cards)
         text = self.canvas.create_text(x + 75, y - 2, text=str(index_num), anchor="s", font=("Arial", 24))
@@ -108,7 +110,7 @@ class TarotCardDisplayApp:
     def card_right_click(self, event):
         # Find which rectangle was right-clicked
         clicked = self.canvas.find_closest(event.x, event.y)[0]
-        
+        print(event.x,event.y)
         # Find the index of clicked rectangle in self.Cards array
         clicked_index = -1
         for i, (hit_rect, rect, text) in enumerate(self.Cards):
@@ -124,25 +126,25 @@ class TarotCardDisplayApp:
                 else:
                     cardset = "Edit"
                 menu = tk.Menu(self.root, tearoff=0)
-                menu.add_command(label=cardset,command=lambda: self.card_to_image(event))
+                menu.add_command(label=cardset,command=lambda: self.card_to_image(hit_rect, rect, text, event))
                 menu.add_command(label="Delete", command=lambda: self.delete_card(hit_rect, rect, text))
                 menu.add_command(label="Cancel")
                 
                 # Display the menu at cursor position
                 menu.post(event.x_root, event.y_root)
                 
-    def card_to_image(self, event):
+    def card_to_image(self, hit_rect,rect, text,event):
         # Find which rectangle was clicked
         clicked = self.canvas.find_closest(event.x, event.y)[0]
         # Create a popup window
-        popup = tk.Toplevel(self.root)
-        popup.title("Popup Window")
-        popup.geometry("300x600")
+        self.popup = tk.Toplevel(self.root)
+        self.popup.title("Popup Window")
+        self.popup.geometry("300x600")
         # Create a listbox within the popup window
-        listbox = tk.Listbox(popup)
+        listbox = tk.Listbox(self.popup)
         listbox.pack(fill=tk.BOTH, expand=True)
         #set the listbox can be scrolled
-        scrollbar = tk.Scrollbar(popup, command=listbox.yview)
+        scrollbar = tk.Scrollbar(self.popup, command=listbox.yview)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         listbox.config(yscrollcommand=scrollbar.set)
 
@@ -150,14 +152,52 @@ class TarotCardDisplayApp:
         for i in range(0,len(self.Cards_name)):
             listbox.insert(tk.END, self.Cards_name[i])
 
-        # Bind a function to the listbox selection event
-        listbox.bind("<<ListboxSelect>>", lambda event: self.on_listbox_select(event, clicked))
+        # 初始化 selected_index 属性
+        self.popup_selected_index = None
+        
+        # 绑定选择事件
+        listbox.bind("<<ListboxSelect>>", lambda event: self.handle_listbox_select(event, hit_rect, rect, text,clicked))
+
+        
+    def handle_listbox_select(self, event,hit_rect, rect, text,clicked):
+        # 获取选择的索引并保存
+        self.popup_selected_index = self.on_listbox_select(event, hit_rect, rect, text,clicked)
     
+    def on_listbox_select(self, event, hit_rect, rect, text, clicked):
+        # Return the number of the selected item
+        self.popup_selected_index = event.widget.curselection()[0]
+        selected_item = event.widget.get(self.popup_selected_index)
+        # Close the popup window
+        self.popup.destroy()
+        self.delete_card(hit_rect, rect, text)
+        print("bbbb",self.popup_selected_index)
+
+    def display_image(self,hit_rect, rect, text,clicked):
+        # Find which rectangle was clicked
+        clicked = self.canvas.find_closest(event.x, event.y)[0]
+        # Find the position of the clicked rectangle
+        rect_coords = self.canvas.coords(clicked)
+        # Find the index of clicked rectangle in self.Cards array
+        clicked_index = -1
+        for i, (hit_rect, rect, text) in enumerate(self.Cards):
+            if clicked in (hit_rect, rect):
+                clicked_index = i
+                break
+        x = rect_coords[0]
+        y = rect_coords[1]
+        # Create a image by local file
+        # handle the image path
+        if self.popup_selected_index == None:
+            image_path = "1.png"
+        else:
+            image_path = str(self.popup_selected_index) + ".png"
+        print(image_path)
+        photo = tk.PhotoImage(file="1.png")
+        image = self.canvas.create_image(x, y, anchor=tk.NW, image=photo)
     def delete_card(self, hit_rect, rect, text):
         # Remove the rectangle group from the canvas
         self.canvas.delete(hit_rect, rect, text)
-        # Remove the rectangle group from the list
-        self.Cards.remove((hit_rect, rect, text))
+
 
 if __name__ == "__main__":
     root = tk.Tk()
