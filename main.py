@@ -4,6 +4,8 @@ import tkinter as tk
 class TarotCardDisplayApp:
 
     Cards = []
+    Cards_content = []
+    Cards_name = ["1","2","3"]
     windows_width = 0
     windows_height = 0
     add_card_button = 0
@@ -67,6 +69,7 @@ class TarotCardDisplayApp:
         rect = self.canvas.create_rectangle(x, y, x + 150, y + 200, fill="", outline="black", width=5)
         # Store both rectangles as a tuple
         self.Cards.append((hit_rect, rect))
+        self.Cards_content.append(-1)
         # Create index number above the rectangle
         index_num = len(self.Cards)
         text = self.canvas.create_text(x + 75, y - 2, text=str(index_num), anchor="s", font=("Arial", 24))
@@ -76,6 +79,7 @@ class TarotCardDisplayApp:
         for r in (hit_rect, rect):
             self.canvas.tag_bind(r, "<ButtonPress-1>", self.card_on_press)
             self.canvas.tag_bind(r, "<B1-Motion>", self.card_on_drag)
+            self.canvas.tag_bind(r, "<ButtonPress-3>", self.card_right_click)  # Add right-click binding
     
     def card_on_press(self, event):
         # Store the initial coordinates
@@ -101,6 +105,59 @@ class TarotCardDisplayApp:
         self.start_x = event.x
         self.start_y = event.y
 
+    def card_right_click(self, event):
+        # Find which rectangle was right-clicked
+        clicked = self.canvas.find_closest(event.x, event.y)[0]
+        
+        # Find the index of clicked rectangle in self.Cards array
+        clicked_index = -1
+        for i, (hit_rect, rect, text) in enumerate(self.Cards):
+            if clicked in (hit_rect, rect):
+                clicked_index = i
+                break
+        # Find the associated rectangle group
+        for hit_rect, rect, text in self.Cards:
+            if clicked in (hit_rect, rect):
+                # Create right-click menu
+                if self.Cards_content[clicked_index] == 0:
+                    cardset = "Add"
+                else:
+                    cardset = "Edit"
+                menu = tk.Menu(self.root, tearoff=0)
+                menu.add_command(label=cardset,command=lambda: self.card_to_image(event))
+                menu.add_command(label="Delete", command=lambda: self.delete_card(hit_rect, rect, text))
+                menu.add_command(label="Cancel")
+                
+                # Display the menu at cursor position
+                menu.post(event.x_root, event.y_root)
+                
+    def card_to_image(self, event):
+        # Find which rectangle was clicked
+        clicked = self.canvas.find_closest(event.x, event.y)[0]
+        # Create a popup window
+        popup = tk.Toplevel(self.root)
+        popup.title("Popup Window")
+        popup.geometry("300x600")
+        # Create a listbox within the popup window
+        listbox = tk.Listbox(popup)
+        listbox.pack(fill=tk.BOTH, expand=True)
+        #set the listbox can be scrolled
+        scrollbar = tk.Scrollbar(popup, command=listbox.yview)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        listbox.config(yscrollcommand=scrollbar.set)
+
+        # Add items to the listbox
+        for i in range(0,len(self.Cards_name)):
+            listbox.insert(tk.END, self.Cards_name[i])
+
+        # Bind a function to the listbox selection event
+        listbox.bind("<<ListboxSelect>>", lambda event: self.on_listbox_select(event, clicked))
+    
+    def delete_card(self, hit_rect, rect, text):
+        # Remove the rectangle group from the canvas
+        self.canvas.delete(hit_rect, rect, text)
+        # Remove the rectangle group from the list
+        self.Cards.remove((hit_rect, rect, text))
 
 if __name__ == "__main__":
     root = tk.Tk()
