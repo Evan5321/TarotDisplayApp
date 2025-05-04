@@ -6,6 +6,8 @@ class TarotCardDisplayApp:
     Cards = []
     windows_width = 0
     windows_height = 0
+    add_card_button = 0
+    add_card_text = 0
 
     def __init__(self, root):
         self.root = root
@@ -49,7 +51,13 @@ class TarotCardDisplayApp:
         x = (self.window_width - 100) // 2
         y = (self.window_height - 50) // 2
         
+        print(self.window_width,self.window_height,self.window_width - 50,self.window_height - 30)
+        self.add_card_button = self.canvas.create_oval(self.window_width - 85, self.window_height - 175,self.window_width- 30,self.window_height- 115, fill="white", outline="black",width=3)
+        self.add_card_text = self.canvas.create_text(self.window_width - 57, self.window_height - 145, text="+", font=("Arial", 38))
+        self.canvas.tag_bind(self.add_card_button, "<Button-1>", lambda event: self.create_rectangle(x,y))
+        self.canvas.tag_bind(self.add_card_text, "<Button-1>", lambda event: self.create_rectangle(x,y))
         self.create_rectangle(x,y)
+
 
     
     def create_rectangle(self,x,y):
@@ -66,10 +74,10 @@ class TarotCardDisplayApp:
         self.Cards[-1] = (self.Cards[-1][0], self.Cards[-1][1], text)
         # Bind events to both rectangles
         for r in (hit_rect, rect):
-            self.canvas.tag_bind(r, "<ButtonPress-1>", self.on_press)
-            self.canvas.tag_bind(r, "<B1-Motion>", self.on_drag)
+            self.canvas.tag_bind(r, "<ButtonPress-1>", self.card_on_press)
+            self.canvas.tag_bind(r, "<B1-Motion>", self.card_on_drag)
     
-    def on_press(self, event):
+    def card_on_press(self, event):
         # Store the initial coordinates
         self.start_x = event.x
         self.start_y = event.y
@@ -81,7 +89,7 @@ class TarotCardDisplayApp:
                 self.current_group = (hit_rect, rect, text)
                 break
 
-    def on_drag(self, event):
+    def card_on_drag(self, event):
         # Calculate the movement delta
         dx = event.x - self.start_x
         dy = event.y - self.start_y
