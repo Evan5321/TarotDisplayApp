@@ -1,4 +1,5 @@
 import tkinter as tk
+from PIL import Image, ImageTk
 
 
 class TarotCardDisplayApp:
@@ -55,6 +56,11 @@ class TarotCardDisplayApp:
         x = (self.window_width - 100) // 2
         y = (self.window_height - 50) // 2
         
+        # 设置Cards_name的数量
+        for i in range(0,78):
+            self.Cards_name.append("")
+            self.Cards_name[i] = str(i+1)
+
         print(self.window_width,self.window_height,self.window_width - 50,self.window_height - 30)
         self.add_card_button = self.canvas.create_oval(self.window_width - 85, self.window_height - 175,self.window_width- 30,self.window_height- 115, fill="white", outline="black",width=3)
         self.add_card_text = self.canvas.create_text(self.window_width - 57, self.window_height - 145, text="+", font=("Arial", 38))
@@ -87,12 +93,12 @@ class TarotCardDisplayApp:
         # Store the initial coordinates
         self.start_x = event.x
         self.start_y = event.y
-        # Find which rectangle was clicked
+        # Find which rectangle or image was clicked
         clicked = self.canvas.find_closest(event.x, event.y)[0]
-        # Find the associated rectangle group
-        for hit_rect, rect, text in self.Cards:
-            if clicked in (hit_rect, rect):
-                self.current_group = (hit_rect, rect, text)
+        # Find the associated group (rectangle or image)
+        for item1, item2, text in self.Cards:
+            if clicked in (item1, item2, text):  # 检查所有可能的项
+                self.current_group = (item1, item2, text)
                 break
 
     def card_on_drag(self, event):
@@ -108,34 +114,40 @@ class TarotCardDisplayApp:
         self.start_y = event.y
 
     def card_right_click(self, event):
-        # Find which rectangle was right-clicked
+        # Find which rectangle or image was right-clicked
         clicked = self.canvas.find_closest(event.x, event.y)[0]
         print(event.x,event.y)
-        # Find the index of clicked rectangle in self.Cards array
+        # Find the index of clicked item in self.Cards array
         clicked_index = -1
-        for i, (hit_rect, rect, text) in enumerate(self.Cards):
-            if clicked in (hit_rect, rect):
+        for i, (item1, item2, text) in enumerate(self.Cards):
+            if clicked in (item1, item2, text):
                 clicked_index = i
                 break
-        # Find the associated rectangle group
-        for hit_rect, rect, text in self.Cards:
-            if clicked in (hit_rect, rect):
-                # Create right-click menu
-                if self.Cards_content[clicked_index] == 0:
-                    cardset = "Add"
-                else:
-                    cardset = "Edit"
-                menu = tk.Menu(self.root, tearoff=0)
-                menu.add_command(label=cardset,command=lambda: self.card_to_image(hit_rect, rect, text, event))
-                menu.add_command(label="Delete", command=lambda: self.delete_card(hit_rect, rect, text))
-                menu.add_command(label="Cancel")
-                
-                # Display the menu at cursor position
-                menu.post(event.x_root, event.y_root)
+        
+        # 如果找到了对应的索引
+        if clicked_index != -1:
+            # Create right-click menu
+            if self.Cards_content[clicked_index] == 0:
+                cardset = "Add"
+            else:
+                cardset = "Edit"
+            menu = tk.Menu(self.root, tearoff=0)
+            # 获取当前组的引用
+            current_group = self.Cards[clicked_index]
+            menu.add_command(label=cardset,command=lambda: self.card_to_image(current_group[0], current_group[1], current_group[2], event))
+            menu.add_command(label="Delete", command=lambda: self.delete_card(current_group[0], current_group[1], current_group[2]))
+            menu.add_command(label="Cancel")
+            
+            # Display the menu at cursor position
+            menu.post(event.x_root, event.y_root)
                 
     def card_to_image(self, hit_rect,rect, text,event):
         # Find which rectangle was clicked
         clicked = self.canvas.find_closest(event.x, event.y)[0]
+        #Find the exact x,y position of the clicked rectangle
+        rect_coords = self.canvas.coords(clicked)
+        x_rect = rect_coords[0]
+        y_rect = rect_coords[1]
         # Create a popup window
         self.popup = tk.Toplevel(self.root)
         self.popup.title("Popup Window")
@@ -156,47 +168,79 @@ class TarotCardDisplayApp:
         self.popup_selected_index = None
         
         # 绑定选择事件
-        listbox.bind("<<ListboxSelect>>", lambda event: self.handle_listbox_select(event, hit_rect, rect, text,clicked))
+        listbox.bind("<<ListboxSelect>>", lambda event: self.handle_listbox_select(event, x_rect, y_rect, hit_rect, rect, text, clicked))
 
         
-    def handle_listbox_select(self, event,hit_rect, rect, text,clicked):
+    def handle_listbox_select(self, event, x_rect, y_rect, hit_rect, rect, text, clicked):
         # 获取选择的索引并保存
-        self.popup_selected_index = self.on_listbox_select(event, hit_rect, rect, text,clicked)
+        self.popup_selected_index = self.on_listbox_select(event, x_rect, y_rect, hit_rect, rect, text, clicked)
     
-    def on_listbox_select(self, event, hit_rect, rect, text, clicked):
+    def on_listbox_select(self, event, x_rect, y_rect, hit_rect, rect, text, clicked):
         # Return the number of the selected item
         self.popup_selected_index = event.widget.curselection()[0]
         selected_item = event.widget.get(self.popup_selected_index)
         # Close the popup window
         self.popup.destroy()
-        self.delete_card(hit_rect, rect, text)
+        # 不再调用 delete_card，而是直接显示图片
         print("bbbb",self.popup_selected_index)
+        self.display_image(event, x_rect, y_rect, hit_rect, rect, text, clicked)
 
-    def display_image(self,hit_rect, rect, text,clicked):
+    def display_image(self,event, x_rect,y_rect,hit_rect, rect, text,clicked):
         # Find which rectangle was clicked
         clicked = self.canvas.find_closest(event.x, event.y)[0]
-        # Find the position of the clicked rectangle
-        rect_coords = self.canvas.coords(clicked)
         # Find the index of clicked rectangle in self.Cards array
         clicked_index = -1
         for i, (hit_rect, rect, text) in enumerate(self.Cards):
             if clicked in (hit_rect, rect):
                 clicked_index = i
                 break
-        x = rect_coords[0]
-        y = rect_coords[1]
-        # Create a image by local file
-        # handle the image path
+                
+        # 删除原来的矩形，但保留文本
+        self.canvas.delete(hit_rect, rect)
+        
+        # 创建图片
         if self.popup_selected_index == None:
-            image_path = "1.png"
+            image_path = "Waite Deck/1.jpg"
         else:
-            image_path = str(self.popup_selected_index) + ".png"
-        print(image_path)
-        photo = tk.PhotoImage(file="1.png")
-        image = self.canvas.create_image(x, y, anchor=tk.NW, image=photo)
+            image_path = "Waite Deck/" + str(self.popup_selected_index + 1) + ".jpg"
+            
+        pil_image = Image.open(image_path)
+        pil_image = pil_image.resize((150, 200))
+        
+        # 使用字典存储每个图片的引用，防止被垃圾回收
+        if not hasattr(self, 'photo_references'):
+            self.photo_references = {}
+            
+        photo = ImageTk.PhotoImage(pil_image)
+        # 使用唯一的键（如clicked_index）来存储每个图片的引用
+        self.photo_references[clicked_index] = photo
+        
+        # 创建新的图片控件
+        image = self.canvas.create_image(x_rect, y_rect, anchor=tk.NW, image=photo)
+        
+        # 更新 Cards 列表中的内容，保留原来的文本
+        self.Cards[clicked_index] = (image, image, text)  # 使用相同的 image ID 替代之前的 hit_rect 和 rect
+        
+        # 更新卡片内容状态
+        self.Cards_content[clicked_index] = 1
+        
+        # 为图片绑定事件
+        self.canvas.tag_bind(image, "<ButtonPress-1>", self.card_on_press)
+        self.canvas.tag_bind(image, "<B1-Motion>", self.card_on_drag)
+        self.canvas.tag_bind(image, "<ButtonPress-3>", self.card_right_click)
+        # Display the image
+        self.canvas.itemconfig(image, image=photo)
+        #self.canvas.tag_bind(image, "<ButtonPress-1>", self.rect_on_press(event))
+        #self.canvas.tag_bind(image, "<B1-Motion>", self.rect_on_drag(event))
+    
     def delete_card(self, hit_rect, rect, text):
         # Remove the rectangle group from the canvas
         self.canvas.delete(hit_rect, rect, text)
+        # Remove the rectangle group from the list
+        if (hit_rect, rect, text) in self.Cards:
+            index = self.Cards.index((hit_rect, rect, text))
+            self.Cards.pop(index)
+            self.Cards_content.pop(index)
 
 
 if __name__ == "__main__":
