@@ -84,7 +84,44 @@ class TarotCardDisplayApp:
                 #self.canvas.tag_bind(r,"<ButtonPress-1>", self.card_on_press)
                 self.canvas.tag_bind(r,"<B1-Motion>", self.card_on_drag)
                 self.canvas.tag_bind(r,"<ButtonPress-3>", self.card_right_click)
+        elif status == 1:
+            # 计算图片的路径
+            image_path = "Waite Deck/" + str(self.popup_selected_index + 1) + ".jpg"
+            # Load the image
+            image = Image.open(image_path)
+            image = image.resize((150, 200))
             
+            # 使用字典存储每个图片的引用，防止被垃圾回收
+            #if not hasattr(self, 'photo_references'):
+            #    self.photo_references = {}
+            #使用唯一的键存对象
+            #self.popup_references[self.popup_selected_index] = image
+            photo = ImageTk.PhotoImage(image)
+            # Replace the rectangle with the image
+            self.canvas.delete(self.Cards[index_num][0][0])
+            self.canvas.delete(self.Cards[index_num][0][1])
+            self.Cards[index_num][0][0] = self.canvas.create_image(x, y, image=photo, anchor=tk.NW)
+            self.Cards[index_num][0][1] = photo
+            # Update card status
+            self.Cards[index_num][1] = 1
+            self.Cards[index_num][4] = 0 # 正位
+            self.Cards[index_num][5] = image_path
+            # Update card position
+            self.Cards[index_num][2] = x
+            self.Cards[index_num][3] = y
+            # Update card order
+            self.update_card_order()
+            print(self.Cards[index_num])
+            # Bind drag and right-click events to the new card
+            num = 0
+            for r in self.Cards[index_num][0]:
+                if num != 1:
+                    self.canvas.tag_bind(r,"<B1-Motion>", self.card_on_drag)
+                    self.canvas.tag_bind(r,"<ButtonPress-3>", self.card_right_click)
+                    num = num+1
+                elif num == 1:
+                    break
+
     def card_on_drag(self, event):
         # Get the clicked item
         clicked_item = self.canvas.find_closest(event.x, event.y)[0]
@@ -92,25 +129,34 @@ class TarotCardDisplayApp:
         # Find which card was clicked by searching through Cards list
         for i, card in enumerate(self.Cards):
             if clicked_item in card[0]:
-                # Get current card dimensions
+                # Get current card position
                 card_coords = self.canvas.coords(card[0][0])
-                card_width = card_coords[2] - card_coords[0]
-                card_height = card_coords[3] - card_coords[1]
                 
-                # Calculate new position with mouse at center
-                new_x = event.x - card_width/2
-                new_y = event.y - card_height/2
+                # Calculate movement based on card type (rectangle or image)
+                if self.Cards[i][1] == 0:  # Rectangle
+                    # For rectangles, coords returns [x1, y1, x2, y2]
+                    current_x = card_coords[0]
+                    current_y = card_coords[1]
+                    # Calculate the movement delta to center
+                    dx = event.x - (current_x + 75)  # 75 is half width of card
+                    dy = event.y - (current_y + 100)  # 100 is half height of card
+                else:  # Image
+                    # For images, coords returns [x, y]
+                    current_x = card_coords[0]
+                    current_y = card_coords[1]
+                    # Calculate the movement delta to center
+                    dx = event.x - (current_x + 75)  # 75 is half width of card
+                    dy = event.y - (current_y + 100)  # 100 is half height of card
                 
-                # Calculate the movement delta
-                dx = new_x - card_coords[0]
-                dy = new_y - card_coords[1]
-                
-                # Move all elements of the card (rectangle, hit rect, and text)
+                # Move all elements of the card
                 for item in card[0]:
                     self.canvas.move(item, dx, dy)
                 
-                # Update
-
+                # Update the card's position in Cards list
+                self.Cards[i][2] = event.x - 75  # Adjust stored position to top-left corner
+                self.Cards[i][3] = event.y - 100
+                break
+                
     def card_right_click(self, event):
         # Get the clicked item
         clicked_item = self.canvas.find_closest(event.x, event.y)[0]
@@ -167,6 +213,9 @@ class TarotCardDisplayApp:
         print(len(self.Cards),index_num)
         print(self.Cards[index_num])
         self.popup.destroy()
+        self.popup = None
+        self.create_card(self.Cards[index_num][2],self.Cards[index_num][3],1,index_num)
+        
     
     def delete_card(self, index):
         # Remove the card from the canvas
