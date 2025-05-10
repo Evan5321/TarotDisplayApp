@@ -1,0 +1,195 @@
+import tkinter as tk
+from PIL import Image, ImageTk
+
+class TarotCardDisplayApp:
+
+    Cards = []
+    #Cards列表是一个嵌套列表，其结构为[[[卡片对象]，卡片状态（0为空白，1为已添加），卡片的x位置，卡片的y位置，卡片的正位逆位（-1为未添加，0为正位，1为逆位），卡片的图片路径（-1未添加）],[...],[...]]
+    Cards_name = ["1","2","3"]
+    windows_width = 0
+    windows_height = 0
+    add_card_button = 0
+    add_card_text = 0
+    popup = None
+    popup_selected_index = -100
+
+    def __init__(self, root):
+        self.root = root
+        self.root.title("塔罗牌展示软件")
+        self.root.resizable(True, True)
+
+        # Get screen dimensions
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        
+        # Set window size to match screen size
+        self.root.geometry(f"{screen_width}x{screen_height}+0+0")
+
+        # 创建菜单栏
+        self.menubar = tk.Menu(self.root)
+
+        # 创建 Files 菜单
+        self.file_menu = tk.Menu(self.menubar, tearoff=0)
+        self.menubar.add_cascade(label="Files", menu=self.file_menu)
+
+        # 创建 Tools 菜单
+        self.tools_menu = tk.Menu(self.menubar, tearoff=0)
+        self.menubar.add_cascade(label="Tools", menu=self.tools_menu)
+
+        # 创建 Settings 菜单
+        self.settings_menu = tk.Menu(self.menubar, tearoff=0)
+        self.menubar.add_cascade(label="Settings", menu=self.settings_menu)
+
+        # 将菜单栏添加到窗口
+        self.root.config(menu=self.menubar)
+
+        # 创建画布
+        self.canvas = tk.Canvas(self.root)
+        self.canvas.pack(fill=tk.BOTH, expand=True)
+
+        # 获取窗口的宽度和高度
+        self.window_width = screen_width
+        self.window_height = screen_height
+
+        # 计算矩形的位置
+        x = (self.window_width - 100) // 2
+        y = (self.window_height - 50) // 2
+        
+        # 设置Cards_name的数量
+        for i in range(0,78):
+            self.Cards_name.append("")
+            self.Cards_name[i] = str(i+1)
+
+        #print(self.window_width,self.window_height,self.window_width - 50,self.window_height - 30)
+        self.add_card_button = self.canvas.create_oval(self.window_width - 85, self.window_height - 175,self.window_width- 30,self.window_height- 115, fill="white", outline="black",width=3)
+        self.add_card_text = self.canvas.create_text(self.window_width - 57, self.window_height - 145, text="+", font=("Arial", 38))
+        self.canvas.tag_bind(self.add_card_button,"<Button-1>", lambda event: self.create_card(x,y,0,-1))
+        self.canvas.tag_bind(self.add_card_text,"<Button-1>", lambda event: self.create_card(x,y,0,-1))
+        self.create_card(x,y ,0,-1)
+
+    def create_card(self,x,y,status,index_num):
+        if status == 0:
+            hit_rect = self.canvas.create_rectangle(x, y, x + 150, y + 200, fill="white", stipple="gray50", state="normal")
+            # Create the visible outline rectangle
+            rect = self.canvas.create_rectangle(x, y, x + 150, y + 200, fill="", outline="black", width=5)
+            self.Cards.append([[rect,hit_rect],0,x,y,-1,-1])
+            # Create the text_num over the the card
+            text_num = len(self.Cards)
+            text_num = self.canvas.create_text(x + 75, y - 20, text=text_num, font=("Arial", 24))
+            # Store the text_num in the corresponding element of the Cards list
+            control_index = len(self.Cards) - 1
+            self.Cards[control_index][0].append(text_num)
+            # Bind events to the card
+            for r in (hit_rect, rect):
+                #self.canvas.tag_bind(r,"<ButtonPress-1>", self.card_on_press)
+                self.canvas.tag_bind(r,"<B1-Motion>", self.card_on_drag)
+                self.canvas.tag_bind(r,"<ButtonPress-3>", self.card_right_click)
+            
+    def card_on_drag(self, event):
+        # Get the clicked item
+        clicked_item = self.canvas.find_closest(event.x, event.y)[0]
+        
+        # Find which card was clicked by searching through Cards list
+        for i, card in enumerate(self.Cards):
+            if clicked_item in card[0]:
+                # Get current card dimensions
+                card_coords = self.canvas.coords(card[0][0])
+                card_width = card_coords[2] - card_coords[0]
+                card_height = card_coords[3] - card_coords[1]
+                
+                # Calculate new position with mouse at center
+                new_x = event.x - card_width/2
+                new_y = event.y - card_height/2
+                
+                # Calculate the movement delta
+                dx = new_x - card_coords[0]
+                dy = new_y - card_coords[1]
+                
+                # Move all elements of the card (rectangle, hit rect, and text)
+                for item in card[0]:
+                    self.canvas.move(item, dx, dy)
+                
+                # Update
+
+    def card_right_click(self, event):
+        # Get the clicked item
+        clicked_item = self.canvas.find_closest(event.x, event.y)[0]
+
+        # Find which card was clicked
+        for i, card in enumerate(self.Cards):
+            if clicked_item in card[0]:
+                
+                # Create popup menu
+                right_click_menu = tk.Menu(self.root, tearoff=0)
+                right_click_menu.add_command(label="Edit", command=lambda: self.edit_card(i))
+                right_click_menu.add_command(label="Delete", command=lambda: self.delete_card(i))
+                
+                # Display popup menu at mouse position
+                try:
+                    right_click_menu.tk_popup(event.x_root, event.y_root)
+                finally:
+                    right_click_menu.grab_release()
+                break
+
+    def edit_card(self, index):
+        # Create a new window for editing
+        self.popup = tk.Toplevel(self.root)
+        self.popup.title("Edit Card")
+        self.popup.geometry("200x100")
+        self.popup_selected_index = index
+
+        # Create a listbox for editing the card name
+        listbox = tk.Listbox(self.popup, selectmode=tk.SINGLE,)
+        listbox.pack(fill=tk.BOTH, expand=True)
+        # Set the listbox can be scollable
+        scrollbar = tk.Scrollbar(listbox, orient=tk.VERTICAL, command=listbox.yview)
+        listbox.config(yscrollcommand=scrollbar.set)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+    
+        # Add the current card name to the listbox
+        for i in range(0,len(self.Cards_name)):
+            listbox.insert(tk.END, self.Cards_name[i])
+        
+        # Init selected item
+        self.popup_selected_index = None
+
+        # Bind the listbox selection event
+        listbox.bind('<<ListboxSelect>>', lambda event:self.on_listbox_select(event,index))
+    
+    def on_listbox_select(self, event,index_num):
+        # Get the selected item
+        widget = event.widget
+        selection = widget.curselection()
+        if selection:
+            index = selection[0]
+            self.popup_selected_index = index
+        print(self.popup_selected_index)
+        print(len(self.Cards),index_num)
+        print(self.Cards[index_num])
+        self.popup.destroy()
+    
+    def delete_card(self, index):
+        # Remove the card from the canvas
+        for item in self.Cards[index][0]:
+            self.canvas.delete(item)
+
+        # Remove the card from the Cards list
+        del self.Cards[index]
+        
+        # Update the card order after deletion
+        self.update_card_order()
+
+    def update_card_order(self):
+        # Update the text number above each card to reflect new order
+        for i, card in enumerate(self.Cards):
+            # Get the text object (stored as the third element in card[0])
+            text_num = card[0][2]
+            
+            # Update the text to the new index + 1
+            self.canvas.itemconfig(text_num, text=str(i + 1))
+
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = TarotCardDisplayApp(root)
+    root.mainloop()
