@@ -1,5 +1,8 @@
 import tkinter as tk
 from PIL import Image, ImageTk
+from tkinter import messagebox
+import os
+
 
 class TarotCardDisplayApp:
 
@@ -63,12 +66,12 @@ class TarotCardDisplayApp:
         #print(self.window_width,self.window_height,self.window_width - 50,self.window_height - 30)
         self.add_card_button = self.canvas.create_oval(self.window_width - 85, self.window_height - 175,self.window_width- 30,self.window_height- 115, fill="white", outline="black",width=3)
         self.add_card_text = self.canvas.create_text(self.window_width - 57, self.window_height - 145, text="+", font=("Arial", 38))
-        self.canvas.tag_bind(self.add_card_button,"<Button-1>", lambda event: self.create_card(x,y,0,-1))
-        self.canvas.tag_bind(self.add_card_text,"<Button-1>", lambda event: self.create_card(x,y,0,-1))
-        self.create_card(x,y ,0,-1)
+        self.canvas.tag_bind(self.add_card_button,"<Button-1>", lambda event: self.create_card(x,y,[0,0],-1))
+        self.canvas.tag_bind(self.add_card_text,"<Button-1>", lambda event: self.create_card(x,y,[0,0],-1))
+        self.create_card(x,y ,[0,0],-1)
 
-    def create_card(self,x,y,status,index_num):
-        if status == 0:
+    def create_card(self,x,y,status,index_num):#status为0创建空白卡片，1为创建图片 第二个参数为0是正位，1为逆位
+        if status[0] == 0:
             hit_rect = self.canvas.create_rectangle(x, y, x + 150, y + 200, fill="white", stipple="gray50", state="normal")
             # Create the visible outline rectangle
             rect = self.canvas.create_rectangle(x, y, x + 150, y + 200, fill="", outline="black", width=5)
@@ -84,7 +87,7 @@ class TarotCardDisplayApp:
                 #self.canvas.tag_bind(r,"<ButtonPress-1>", self.card_on_press)
                 self.canvas.tag_bind(r,"<B1-Motion>", self.card_on_drag)
                 self.canvas.tag_bind(r,"<ButtonPress-3>", self.card_right_click)
-        elif status == 1:
+        elif status[0] == 1:
             # 计算图片的路径
             image_path = "Waite Deck/" + str(self.popup_selected_index + 1) + ".jpg"
             # Load the image
@@ -100,11 +103,20 @@ class TarotCardDisplayApp:
             # Replace the rectangle with the image
             self.canvas.delete(self.Cards[index_num][0][0])
             self.canvas.delete(self.Cards[index_num][0][1])
-            self.Cards[index_num][0][0] = self.canvas.create_image(x, y, image=photo, anchor=tk.NW)
+            if status[1] == 0:
+                self.Cards[index_num][0][0] = self.canvas.create_image(x, y, image=photo, anchor=tk.NW)
+                self.Cards[index_num][4] = 0 # 正位
+            elif status[1] == 1:
+                #将图片翻转90度
+                image = image.rotate(180)
+                photo = ImageTk.PhotoImage(image)
+                self.Cards[index_num][0][0] = self.canvas.create_image(x, y, image=photo, anchor=tk.NW)
+                self.Cards[index_num][4] = 1 # 逆位
+
             self.Cards[index_num][0][1] = photo
             # Update card status
             self.Cards[index_num][1] = 1
-            self.Cards[index_num][4] = 0 # 正位
+            
             self.Cards[index_num][5] = image_path
             # Update card position
             self.Cards[index_num][2] = x
@@ -182,6 +194,7 @@ class TarotCardDisplayApp:
         self.popup = tk.Toplevel(self.root)
         self.popup.title("Edit Card")
         self.popup.geometry("200x100")
+        self.popup.attributes('-topmost', True)  # Make window always on top
         self.popup_selected_index = index
 
         # Create a listbox for editing the card name
@@ -191,31 +204,52 @@ class TarotCardDisplayApp:
         scrollbar = tk.Scrollbar(listbox, orient=tk.VERTICAL, command=listbox.yview)
         listbox.config(yscrollcommand=scrollbar.set)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-    
+        
         # Add the current card name to the listbox
         for i in range(0,len(self.Cards_name)):
             listbox.insert(tk.END, self.Cards_name[i])
         
+        # Add a button to confirm the selection
+        #confirm_button = tk.Button(self.popup, text="Confirm", command=lambda: self.on_listbox_select(None,index))
+        #confirm_button.pack(side=tk.BOTTOM, fill=tk.X)
+        
+        #Add a sigle-check box beneath the listbox
+        check_var = tk.IntVar()
+        check_button = tk.Checkbutton(self.popup, text="Reverse", variable=check_var)
+        check_button.pack(side=tk.BOTTOM, fill=tk.X)
+
         # Init selected item
         self.popup_selected_index = None
 
         # Bind the listbox selection event
-        listbox.bind('<<ListboxSelect>>', lambda event:self.on_listbox_select(event,index))
+        listbox.bind('<<ListboxSelect>>', lambda event:self.on_listbox_select(event,index,check_var))
     
-    def on_listbox_select(self, event,index_num):
+    def on_listbox_select(self, event, index_num, check_var):
         # Get the selected item
         widget = event.widget
         selection = widget.curselection()
         if selection:
             index = selection[0]
             self.popup_selected_index = index
-        print(self.popup_selected_index)
-        print(len(self.Cards),index_num)
-        print(self.Cards[index_num])
-        self.popup.destroy()
-        self.popup = None
-        self.create_card(self.Cards[index_num][2],self.Cards[index_num][3],1,index_num)
-        
+
+       # Detect if the card is already added
+        card_exists = False
+        for i in range(len(self.Cards)):
+            if self.Cards[i][1] == 1 and self.Cards[i][5] == "Waite Deck/" + str(self.popup_selected_index + 1) + ".jpg":
+                # Popup a message box
+                messagebox.showinfo("Error", "This card has already been added.", icon=messagebox.ERROR)
+                self.popup_selected_index = None
+                card_exists = True
+                break
+
+        # If no duplicate card is found, proceed to add the card
+        if not card_exists:
+            self.popup.destroy()
+            self.popup = None
+            if check_var.get() == 1:
+                self.create_card(self.Cards[index_num][2], self.Cards[index_num][3], [1, 1], index_num)
+            else:
+                self.create_card(self.Cards[index_num][2], self.Cards[index_num][3], [1, 0], index_num)
     
     def delete_card(self, index):
         # Remove the card from the canvas
