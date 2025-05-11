@@ -2,10 +2,14 @@ import tkinter as tk
 from PIL import Image, ImageTk
 from tkinter import messagebox
 import os
+from FileFunction import FileFunction
+from tkinter import filedialog
+# -*- coding: utf-8 -*-
 
 
 class TarotCardDisplayApp:
 
+    FileFunction = FileFunction()
     Cards = []
     #Cards列表是一个嵌套列表，其结构为[[[卡片对象]，卡片状态（0为空白，1为已添加），卡片的x位置，卡片的y位置，卡片的正位逆位（-1为未添加，0为正位，1为逆位），卡片的图片路径（-1未添加）],[...],[...]]
     Cards_name = ["1","2","3"]
@@ -14,6 +18,8 @@ class TarotCardDisplayApp:
     add_card_button = 0
     add_card_text = 0
     popup = None
+    is_open_file = False
+    opened_file_path = ""
     popup_selected_index = -100
 
     def __init__(self, root):
@@ -34,6 +40,14 @@ class TarotCardDisplayApp:
         # 创建 Files 菜单
         self.file_menu = tk.Menu(self.menubar, tearoff=0)
         self.menubar.add_cascade(label="Files", menu=self.file_menu)
+        #添加新建文件选项
+        #self.file_menu.add_command(label="New", command=self.FileFunction.New)
+        #添加打开文件选项
+        #self.file_menu.add_command(label="Open", command=self.FileFunction.Open)
+        #添加保存文件选项
+        self.file_menu.add_command(label="Save", command=self.save_file)
+        #添加保存文件为选项
+        #self.file_menu.add_command(label="Save As", command=self.FileFunction.SaveAs)
 
         # 创建 Tools 菜单
         self.tools_menu = tk.Menu(self.menubar, tearoff=0)
@@ -69,6 +83,21 @@ class TarotCardDisplayApp:
         self.canvas.tag_bind(self.add_card_button,"<Button-1>", lambda event: self.create_card(x,y,[0,0],-1))
         self.canvas.tag_bind(self.add_card_text,"<Button-1>", lambda event: self.create_card(x,y,[0,0],-1))
         self.create_card(x,y ,[0,0],-1)
+
+    def save_file(self):
+        # Detect if is open file
+        if self.is_open_file:
+            self.FileFunction.save_whole_array(self.Cards, self.opened_file_path)
+        else:
+            # Popup a file choose dialog
+            self.opened_file_path = filedialog.asksaveasfilename(defaultextension=".txt", filetypes=[("Text files", "*.txt"), ("All files", "*.*")])
+            if self.opened_file_path:
+                self.FileFunction.save_whole_array(self.Cards, self.opened_file_path)
+                self.is_open_file = True
+            else:
+                messagebox.showinfo("Info", "File not saved.", icon=messagebox.INFO)
+                self.is_open_file = False
+                return
 
     def create_card(self,x,y,status,index_num):#status为0创建空白卡片，1为创建图片 第二个参数为0是正位，1为逆位
         if status[0] == 0:
@@ -232,24 +261,31 @@ class TarotCardDisplayApp:
             index = selection[0]
             self.popup_selected_index = index
 
-       # Detect if the card is already added
+        # Check if the card exists and its orientation
         card_exists = False
+        target_path = "Waite Deck/" + str(self.popup_selected_index + 1) + ".jpg"
+        target_orientation = check_var.get()  # 1 for reverse, 0 for upright
+        
         for i in range(len(self.Cards)):
-            if self.Cards[i][1] == 1 and self.Cards[i][5] == "Waite Deck/" + str(self.popup_selected_index + 1) + ".jpg":
-                # Popup a message box
-                messagebox.showinfo("Error", "This card has already been added.", icon=messagebox.ERROR)
-                self.popup_selected_index = None
+            if self.Cards[i][1] == 1 and self.Cards[i][5] == target_path:
                 card_exists = True
+                # Check if orientation is different
+                if self.Cards[i][4] != target_orientation and index_num == i:
+                    # Update card with new orientation
+                    self.popup.destroy()
+                    self.popup = None
+                    self.create_card(self.Cards[i][2], self.Cards[i][3], [1, target_orientation], i)
+                else:
+                    # Same card with same orientation - show error
+                    messagebox.showinfo("Error", "This card already exists in the same orientation.", icon=messagebox.ERROR)
+                    self.popup_selected_index = None
                 break
 
-        # If no duplicate card is found, proceed to add the card
+        # If card doesn't exist, add it
         if not card_exists:
             self.popup.destroy()
             self.popup = None
-            if check_var.get() == 1:
-                self.create_card(self.Cards[index_num][2], self.Cards[index_num][3], [1, 1], index_num)
-            else:
-                self.create_card(self.Cards[index_num][2], self.Cards[index_num][3], [1, 0], index_num)
+            self.create_card(self.Cards[index_num][2], self.Cards[index_num][3], [1, target_orientation], index_num)
     
     def delete_card(self, index):
         # Remove the card from the canvas
