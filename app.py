@@ -94,6 +94,7 @@ class TarotCardDisplayApp:
             if self.opened_file_path:
                 self.FileFunction.save_whole_array(self.Cards, self.opened_file_path)
                 self.is_open_file = True
+                messagebox.showinfo("Info", "File saved successfully.", icon=messagebox.INFO)
             else:
                 messagebox.showinfo("Info", "File not saved.", icon=messagebox.INFO)
                 self.is_open_file = False
