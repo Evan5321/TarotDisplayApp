@@ -14,5 +14,14 @@ class FileFunction:
         
 
     def read_whole_array(self,file_path):
-        pass
+        
+        return_Cards = []
 
+        file_obj = open(file_path, 'r')
+        for line in file_obj.readlines():
+            line = line.rstrip()
+            line = line.split(' ')
+            print(line)
+            return_Cards.append(line)
+        file_obj.close()
+        return return_Cards

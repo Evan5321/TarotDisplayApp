@@ -43,7 +43,7 @@ class TarotCardDisplayApp:
         #添加新建文件选项
         #self.file_menu.add_command(label="New", command=self.FileFunction.New)
         #添加打开文件选项
-        #self.file_menu.add_command(label="Open", command=self.FileFunction.Open)
+        self.file_menu.add_command(label="Open", command=self.read_file)
         #添加保存文件选项
         self.file_menu.add_command(label="Save", command=self.save_file)
         #添加保存文件为选项
@@ -84,6 +84,36 @@ class TarotCardDisplayApp:
         self.canvas.tag_bind(self.add_card_text,"<Button-1>", lambda event: self.create_card(x,y,[0,0],-1))
         self.create_card(x,y ,[0,0],-1)
 
+    
+    def read_file(self):
+        # Popup a file choose dialog
+        self.opened_file_path = filedialog.askopenfilename(defaultextension=".txt", filetypes=[("Text files", "*.txt"), ("All files", "*.*")])
+        if self.opened_file_path:
+            temp_Cards = self.FileFunction.read_whole_array(self.opened_file_path)
+            self.is_open_file = True
+            print("temp_va",temp_Cards)
+            # Clear all the cards
+            for i in range(len(self.Cards)):
+                for j in range(len(self.Cards[i][0])):
+                    self.canvas.delete(self.Cards[i][0][j])
+            
+            self.Cards = []
+            for i in range(len(temp_Cards)):
+                #检测'WaiteDeck/*.jpg' 的*处的数字是多少并单独提取出来
+                print("url00",temp_Cards)
+                url = temp_Cards[i][4]
+                print("url00",url)
+                url = url.split('/')
+                print("url00q",url)
+                url = url[1]
+                url = url.split('.')
+                print("url00b",url)
+                url = url[0]
+                self.popup_selected_index = int(url) - 1
+                self.create_card(int(temp_Cards[i][1]),int(temp_Cards[i][2]),[int(temp_Cards[i][0]),int(temp_Cards[i][1])],int(i+1))
+
+            messagebox.showinfo("Info", "File opened successfully.", icon=messagebox.INFO)
+
     def save_file(self):
         # Detect if is open file
         if self.is_open_file:
@@ -100,7 +130,8 @@ class TarotCardDisplayApp:
                 self.is_open_file = False
                 return
 
-    def create_card(self,x,y,status,index_num):#status为0创建空白卡片，1为创建图片 第二个参数为0是正位，1为逆位
+    def create_card(self,x,y,status,index_num):#status是一个列表第一个参数为0创建空白卡片，1为创建图片 第二个参数为0是正位，1为逆位
+        print("create_card",x,y,status,index_num)
         if status[0] == 0:
             hit_rect = self.canvas.create_rectangle(x, y, x + 150, y + 200, fill="white", stipple="gray50", state="normal")
             # Create the visible outline rectangle
@@ -119,7 +150,7 @@ class TarotCardDisplayApp:
                 self.canvas.tag_bind(r,"<ButtonPress-3>", self.card_right_click)
         elif status[0] == 1:
             # 计算图片的路径
-            image_path = "Waite Deck/" + str(self.popup_selected_index + 1) + ".jpg"
+            image_path = "WaiteDeck/" + str(self.popup_selected_index + 1) + ".jpg"
             # Load the image
             image = Image.open(image_path)
             image = image.resize((150, 200))
@@ -131,8 +162,11 @@ class TarotCardDisplayApp:
             #self.popup_references[self.popup_selected_index] = image
             photo = ImageTk.PhotoImage(image)
             # Replace the rectangle with the image
-            self.canvas.delete(self.Cards[index_num][0][0])
-            self.canvas.delete(self.Cards[index_num][0][1])
+            try:
+                self.canvas.delete(self.Cards[index_num][0][0])
+                self.canvas.delete(self.Cards[index_num][0][1])
+            except:
+                pass
             if status[1] == 0:
                 self.Cards[index_num][0][0] = self.canvas.create_image(x, y, image=photo, anchor=tk.NW)
                 self.Cards[index_num][4] = 0 # 正位
@@ -264,7 +298,7 @@ class TarotCardDisplayApp:
 
         # Check if the card exists and its orientation
         card_exists = False
-        target_path = "Waite Deck/" + str(self.popup_selected_index + 1) + ".jpg"
+        target_path = "WaiteDeck/" + str(self.popup_selected_index + 1) + ".jpg"
         target_orientation = check_var.get()  # 1 for reverse, 0 for upright
         
         for i in range(len(self.Cards)):
