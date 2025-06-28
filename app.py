@@ -176,8 +176,8 @@ class TarotCardDisplayApp:
         else:
             self.zoom(-self.scale_step, event.x, event.y)
     
-    def zoom(self, delta, x=None, y=None):
-        """缩放画布"""
+    def zoom(self, delta, x=None, y=None, is_refresh=False):
+        """缩放画布，is_refresh=True时表示仅用于刷新，避免递归."""
         new_scale = self.scale_factor + delta
         if new_scale < self.min_scale or new_scale > self.max_scale:
             return
@@ -187,7 +187,6 @@ class TarotCardDisplayApp:
             y = self.window_height / 2
         scale_change = new_scale / self.scale_factor
         self.scale_factor = new_scale
-        # 记录所有卡片的原始信息
         card_infos = []
         for card in self.Cards:
             card_infos.append({
@@ -197,13 +196,11 @@ class TarotCardDisplayApp:
                 'orientation': card[4],
                 'image_path': card[5]
             })
-        # 删除所有卡片
         for card in self.Cards:
             for item in card[0]:
                 if isinstance(item, int):
                     self.canvas.delete(item)
         self.Cards = []
-        # 重新创建所有卡片（全部append，不用index）
         for info in card_infos:
             rel_x = info['x'] - x
             rel_y = info['y'] - y
@@ -212,7 +209,6 @@ class TarotCardDisplayApp:
             if info['status'] == 0:
                 self.create_card(new_x, new_y, [0, 0], -1)
             else:
-                # 计算图片编号
                 if info['image_path'] and isinstance(info['image_path'], str):
                     try:
                         card_num = int(os.path.splitext(os.path.basename(info['image_path']))[0])
@@ -223,6 +219,9 @@ class TarotCardDisplayApp:
                 self.popup_selected_index = card_num - 1
                 self.create_card(new_x, new_y, [1, info['orientation']], -1)
         self.canvas.itemconfig(self.scale_text, text=f"{int(self.scale_factor * 100)}%")
+        # 避免递归：只有不是refresh时才自动刷新
+        #if not is_refresh:
+            #self.refresh_canvas_layout = lambda: self.zoom(0, is_refresh=True)
 
     def read_file(self):
         # Popup a file choose dialog
@@ -275,12 +274,18 @@ class TarotCardDisplayApp:
                 self.is_open_file = False
                 return
 
+    def refresh_canvas_layout(self):
+        """直接更新卡片布局，避免通过缩放触发递归"""
+        self.update_card_order()
+        # 强制更新画布显示
+        self.canvas.update_idletasks()
+
     def create_card(self, x, y, status, index_num, update=False):
         """创建或更新卡片
         status是一个列表第一个参数为0创建空白卡片，1为创建图片 第二个参数为0是正位，1为逆位
         update为True时表示更新现有卡片而不是创建新卡片
         """
-        print("create_card", x, y, status, index_num)
+        #print("create_card", x, y, status, index_num)
         
         # 计算当前缩放下的卡片尺寸
         card_width = self.base_card_width * self.scale_factor
@@ -322,7 +327,6 @@ class TarotCardDisplayApp:
             for r in (hit_rect, rect):
                 self.canvas.tag_bind(r, "<B1-Motion>", self.card_on_drag)
                 self.canvas.tag_bind(r, "<ButtonPress-3>", self.card_right_click)
-                
         elif status[0] == 1:  # 创建图片卡片
             # 计算图片的路径
             image_path = "WaiteDeck/" + str(self.popup_selected_index + 1) + ".jpg"
@@ -376,7 +380,7 @@ class TarotCardDisplayApp:
                 text_obj = self.canvas.create_text(
                     x + (card_width / 2), y - (20 * self.scale_factor), 
                     text=index_num + 1, font=("Arial", font_size), tags="card")
-                self.Cards[index_num][0][2] = text_obj
+                self.Cards[index_num][0].append(text_obj)
             else:
                 # 新建图片卡片
                 self.Cards.append([[img_obj, img_obj], 1, x, y, status[1], image_path])
@@ -389,25 +393,30 @@ class TarotCardDisplayApp:
             self.update_card_order()
             self.canvas.tag_bind(img_obj, "<B1-Motion>", self.card_on_drag)
             self.canvas.tag_bind(img_obj, "<ButtonPress-3>", self.card_right_click)
+        
 
     def card_on_drag(self, event):
         clicked_item = self.canvas.find_closest(event.x, event.y)[0]
         for i, card in enumerate(self.Cards):
             if clicked_item in card[0]:
-                card_coords = self.canvas.coords(card[0][0])
                 card_width = self.base_card_width * self.scale_factor
                 card_height = self.base_card_height * self.scale_factor
-                dx = event.x - (card_coords[0] + card_width/2)
-                dy = event.y - (card_coords[1] + card_height/2)
-                # 移动所有图形对象（包括编号文本）
-                for item in card[0]:
-                    if isinstance(item, int):
-                        self.canvas.move(item, dx, dy)
-                # 移动编号文本（如果未被包含在card[0]，则补充移动）
+                # 让卡片中心跟随鼠标
+                new_x = event.x - card_width / 2
+                new_y = event.y - card_height / 2
+                if card[1] == 1:  # 图片卡片
+                    self.canvas.coords(card[0][0], new_x, new_y)
+                else:  # 空白卡片（矩形）
+                    self.canvas.coords(card[0][0], new_x, new_y, new_x + card_width, new_y + card_height)
+                    self.canvas.coords(card[0][1], new_x, new_y, new_x + card_width, new_y + card_height)
+                # 序号始终在卡片正上方
                 if len(card[0]) > 2:
-                    self.canvas.move(card[0][2], dx, dy)
-                self.Cards[i][2] = event.x - (card_width/2)
-                self.Cards[i][3] = event.y - (card_height/2)
+                    text_x = new_x + card_width / 2
+                    text_y = new_y - (20 * self.scale_factor)
+                    self.canvas.coords(card[0][2], text_x, text_y)
+                # 更新卡片位置数据
+                self.Cards[i][2] = new_x
+                self.Cards[i][3] = new_y
                 break
 
     def card_right_click(self, event):
@@ -487,6 +496,7 @@ class TarotCardDisplayApp:
                     self.popup.destroy()
                     self.popup = None
                     self.create_card(self.Cards[i][2], self.Cards[i][3], [1, target_orientation], i)
+                    #self.zoom(0)
                 else:
                     # Same card with same orientation - show error
                     messagebox.showinfo("Error", "This card already exists in the same orientation.", icon=messagebox.ERROR)
@@ -510,10 +520,17 @@ class TarotCardDisplayApp:
         
         # Update the card order after deletion
         self.update_card_order()
+        #self.zoom(0)
 
     def update_card_order(self):
         # 计算当前缩放下的字体大小
         font_size = int(24 * self.scale_factor)
+        
+        # 防止递归调用
+        if getattr(self, '_refreshing', False):
+            return
+            
+        self._refreshing = True
         
         # Update the text number above each card to reflect new order
         for i, card in enumerate(self.Cards):
@@ -531,6 +548,9 @@ class TarotCardDisplayApp:
                 x = card[2] + (card_width / 2)
                 y = card[3] - (20 * self.scale_factor)
                 self.canvas.coords(text_num, x, y)
+        
+        # 使用after方法延迟重置刷新标志，避免直接递归
+        self.root.after(10, lambda: setattr(self, '_refreshing', False))
 
 if __name__ == "__main__":
     root = tk.Tk()
